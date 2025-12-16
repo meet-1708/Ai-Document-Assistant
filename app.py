@@ -1,5 +1,8 @@
 import streamlit as st
 import fitz  # PyMuPDF
+from sentence_transformers import SentenceTransformer
+import numpy as np
+
 
 st.set_page_config(page_title="AI Document Assistant", layout="wide")
 
@@ -16,16 +19,43 @@ def extract_text_from_pdf(pdf_file):
         text += page.get_text()
     return text
 
+def clean_text(text):
+    text = text.replace("\n", " ")
+    text = " ".join(text.split())
+    return text
+
+
+def chunk_text(text, chunk_size=500, overlap=100):
+    chunks = []
+    start = 0
+
+    while start < len(text):
+        end = start + chunk_size
+        chunk = text[start:end]
+        chunks.append(chunk)
+        start = end - overlap
+
+    return chunks
+
+@st.cache_resource
+def load_embedding_model():
+    return SentenceTransformer("all-MiniLM-L6-v2")
+
+def generate_embeddings(chunks, model):
+    embeddings = model.encode(chunks)
+    return np.array(embeddings)
+
 if uploaded_file:
-    st.success("PDF uploaded successfully!")
-
     extracted_text = extract_text_from_pdf(uploaded_file)
+    cleaned_text = clean_text(extracted_text)
 
-    st.subheader("Extracted Text Preview")
-    st.text_area(
-        "Text from PDF",
-        extracted_text[:5000],  # preview first 5000 chars
-        height=400
-    )
+    chunks = chunk_text(cleaned_text)
 
-    st.info(f"Total characters extracted: {len(extracted_text)}")
+    st.success(f"Document split into {len(chunks)} chunks")
+
+    if st.button("Generate Embeddings"):
+        model = load_embedding_model()
+        embeddings = generate_embeddings(chunks, model)
+
+        st.write("Embedding shape:", embeddings.shape)
+        st.success("Embeddings generated successfully!")
