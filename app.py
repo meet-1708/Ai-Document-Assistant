@@ -2,6 +2,8 @@ import streamlit as st
 import fitz  # PyMuPDF
 from sentence_transformers import SentenceTransformer
 import numpy as np
+import faiss
+
 
 
 st.set_page_config(page_title="AI Document Assistant", layout="wide")
@@ -45,6 +47,23 @@ def generate_embeddings(chunks, model):
     embeddings = model.encode(chunks)
     return np.array(embeddings)
 
+def build_faiss_index(embeddings):
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dimension)
+    index.add(embeddings)
+    return index
+
+def semantic_search(query, model, index, chunks, top_k=3):
+    query_embedding = model.encode([query])
+    distances, indices = index.search(query_embedding, top_k)
+
+    results = []
+    for idx in indices[0]:
+        results.append(chunks[idx])
+
+    return results
+
+
 if uploaded_file:
     extracted_text = extract_text_from_pdf(uploaded_file)
     cleaned_text = clean_text(extracted_text)
@@ -57,5 +76,28 @@ if uploaded_file:
         model = load_embedding_model()
         embeddings = generate_embeddings(chunks, model)
 
-        st.write("Embedding shape:", embeddings.shape)
-        st.success("Embeddings generated successfully!")
+        index = build_faiss_index(embeddings)
+
+        st.session_state["model"] = model
+        st.session_state["chunks"] = chunks
+        st.session_state["index"] = index
+
+        st.success("FAISS index created successfully!")
+
+if "index" in st.session_state:
+    st.subheader("🔍 Ask a Question (Semantic Search)")
+
+    query = st.text_input("Enter your question")
+
+    if query:
+        results = semantic_search(
+            query,
+            st.session_state["model"],
+            st.session_state["index"],
+            st.session_state["chunks"]
+        )
+
+        st.subheader("📄 Most Relevant Document Sections")
+        for i, res in enumerate(results):
+            st.write(f"**Result {i+1}:**")
+            st.write(res[:500] + "...")

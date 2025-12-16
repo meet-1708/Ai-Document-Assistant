@@ -2,3 +2,4 @@ streamlit
 pymupdf
 numpy
 sentence-transformers
+faiss-cpu
