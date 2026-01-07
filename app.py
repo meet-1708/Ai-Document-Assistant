@@ -3,13 +3,12 @@ import fitz  # PyMuPDF
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import faiss
-
+from transformers import pipeline
 
 
 st.set_page_config(page_title="AI Document Assistant", layout="wide")
 
 st.title("📄 AI Document Assistant")
-st.subheader("Phase 1: PDF Upload & Text Extraction")
 
 uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
 
@@ -63,6 +62,20 @@ def semantic_search(query, model, index, chunks, top_k=3):
 
     return results
 
+@st.cache_resource
+def load_summarizer():
+    return pipeline("summarization", model="facebook/bart-large-cnn")
+
+def summarize_text(text, summarizer, max_length=150, min_length=60):
+    summary = summarizer(
+        text[:1024],  # model limit
+        max_length=max_length,
+        min_length=min_length,
+        do_sample=False
+    )
+    return summary[0]["summary_text"]
+
+
 
 if uploaded_file:
     extracted_text = extract_text_from_pdf(uploaded_file)
@@ -101,3 +114,17 @@ if "index" in st.session_state:
         for i, res in enumerate(results):
             st.write(f"**Result {i+1}:**")
             st.write(res[:500] + "...")
+
+if "chunks" in st.session_state:
+    st.subheader("📝 Document Summary")
+
+    if st.button("Generate Summary"):
+        summarizer = load_summarizer()
+        text_to_summarize = " ".join(st.session_state["chunks"][:3])
+        summary = summarize_text(
+            text_to_summarize,
+            summarizer
+        )
+
+        st.success("Summary generated!")
+        st.write(summary)

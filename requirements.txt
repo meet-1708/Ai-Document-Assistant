@@ -3,3 +3,5 @@ pymupdf
 numpy
 sentence-transformers
 faiss-cpu
+transformers
+torch
